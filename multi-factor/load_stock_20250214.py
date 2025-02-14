@@ -14,13 +14,6 @@ from sklearn.neighbors import KNeighborsClassifier
 from sklearn.metrics import accuracy_score
 
 
-
-
-######################
-# 使用 .loc 方法选择特定日期的数据
-#specific_date_data = raw_data.loc[(raw_data.index.get_level_values('datetime') == pd.Timestamp('2005-01-04'))]
-#######################
-
 def knn_stock_prediction(df, start_date, split_date):
     """
     使用 K-Nearest Neighbors (KNN) 算法进行股票价格预测，并返回包含 'instrument'、'datetime' 和 'Predicted_Signal' 的 DataFrame。
@@ -116,11 +109,58 @@ def knn_stock_prediction(df, start_date, split_date):
     return predicted_signals_df
 
 
+def factors_null_process(data: pd.DataFrame, columns_to_process=None) -> pd.DataFrame:
+    # 删除行业缺失值
+    data = data[data['INDUSTRY_CODE'].notnull()]
 
+    # 变化索引，以行业为第一索引，股票代码为第二索引
+    data_ = data.reset_index().set_index(['INDUSTRY_CODE', 'code']).sort_index()
+
+    if columns_to_process is None:
+        # 如果未指定处理的列，默认选择数值类型的列
+        numeric_columns = data_.select_dtypes(include='number').columns
+    else:
+        # 筛选出指定要处理的列
+        numeric_columns = [col for col in columns_to_process if col in data_.columns]
+
+    # 用行业中位数填充数值列的缺失值
+    def fillna_median(group):
+        group[numeric_columns] = group[numeric_columns].fillna(group[numeric_columns].median())
+        return group
+
+    data_ = data_.groupby(level=0).apply(fillna_median)
+
+    # 有些行业可能只有一两个个股却都为nan此时使用0值填充数值列
+    data_[numeric_columns] = data_[numeric_columns].fillna(0)
+
+    # 检查 INDUSTRY_CODE 是否已经是普通列
+    if 'INDUSTRY_CODE' in data_.columns:
+        # 如果已经是普通列，只对 'code' 索引进行 reset_index
+        data_ = data_.reset_index(level=data_.index.names.index('code'))
+    else:
+        # 否则，对所有索引进行 reset_index，但不插入重复列
+        index_levels = data_.index.names
+        levels_to_reset = [data_.index.names.index(level) for level in index_levels if level not in data_.columns]
+        data_ = data_.reset_index(level=levels_to_reset)
+
+    # 设置 'code' 为索引并排序
+    data_ = data_.set_index('code').sort_index()
+
+    return data_.drop('date', axis=1)
+
+
+def get_group(ser: pd.Series, N: int = 3, ascend: bool = True) -> pd.Series:
+    '''默认分三组 升序'''
+    ranks = ser.rank(ascending=ascend)
+    label = ['G' + str(i) for i in range(1, N + 1)]
+
+    return pd.cut(ranks, bins=N, labels=label)
 
 if __name__ == '__main__':
-    test_period = ("2020-01-01", "2025-02-07")
 
+######################step1 获取原始量价数据 ########################
+
+    test_period = ("2020-01-01", "2025-02-07")
     market = "all"
     # benchmark = "SZ16070"
     benchmark = "SH000300"
@@ -132,37 +172,8 @@ if __name__ == '__main__':
         start_time=test_period[0],
         end_time=test_period[1],
     )
-
-    raw_data.columns = [col.replace('$', '') for col in raw_data.columns]
-    start_date = '2020-01-01'
-    split_date = '2024-09-01'
-    test = knn_stock_prediction(raw_data, start_date, split_date)
-    test.to_csv("c:\\temp\\new_all_data_20250213.csv")
-
-
-'''
-##################################################################    
-# 假设raw_data和weights_df_1是已经存在的数据框
-merged_df = pd.merge(raw_data.reset_index(), weights_df_2, left_on=['instrument', 'datetime'], right_on=['code', 'date'], how='inner')
-
-# 如果不需要合并过程中产生的临时列，可以删除
-merged_df = merged_df.drop(['code', 'date','取值日期'], axis=1)
-#merged_df = merged_df[['instrument', 'datetime', 'open', 'high', 'low', 'close', 'volume', '名称', 'weight','板块名称']]
-# 可以将instrument和datetime设置回索引（如果需要）
-merged_df = merged_df.set_index(['instrument', 'datetime'])
-'''        
-
-
-
-
-
-
-
-
-'''
-    # 获取指数6月底跟12月底的权重数据，取数方式见“同花顺数据采集.py”
-    #########################################################################
-    #获取股票板块及总股本
+#####################step2 权重，板块数据 ###########################
+    # 获取股票板块及总股本
     combined_df_new = pd.read_csv('c:\\temp\\combined_df_new_20250124.csv')
     combined_df_new = combined_df_new.drop(combined_df_new.columns[[0]], axis=1)
     weights_df = pd.read_csv("c:\\temp\\weights_df_20160616.csv")
@@ -185,8 +196,7 @@ merged_df = merged_df.set_index(['instrument', 'datetime'])
     weights_df['代码'] = weights_df['代码'].astype(str)
 
     # 根据“代码”列进行合并，使用左连接（left join）以保留 weights_df 中的所有行
-    weights_df_1 = pd.merge(weights_df, combined_df_new[['代码', '板块名称']], on='代码', how='left')
-
+    weights_df_1 = pd.merge(weights_df, combined_df_new[['代码', '板块名称','总股本']], on='代码', how='left')
 
     # 确保date列的格式与datetime列一致
     weights_df_1 = weights_df_1.rename(columns={
@@ -194,69 +204,73 @@ merged_df = merged_df.set_index(['instrument', 'datetime'])
         "权重": "weight"
     })
     weights_df_1['date'] = pd.to_datetime(weights_df_1['date'], format='%Y%m%d', errors='coerce')
+    #限定一下获取日期
+    weights_df_2=weights_df_1[weights_df_1['date'] >= '2020-01-01']
 
-    # 确保test中的datetime列也是datetime类型
-    test['datetime'] = pd.to_datetime(test['datetime'])
+#####################step3 限定原始量价数据 ###########################
+    # 假设raw_data和weights_df_1是已经存在的数据框
+    merged_df = pd.merge(raw_data.reset_index(), weights_df_2, left_on=['instrument', 'datetime'],
+                         right_on=['code', 'date'], how='inner')
 
-    # 合并DataFrame
-    merged_df = pd.merge(test, weights_df_1, left_on=['code', 'datetime'], right_on=['code', 'date'], how='left')
+    # 如果不需要合并过程中产生的临时列，可以删除
+    merged_df = merged_df.drop(['code', 'date', '取值日期'], axis=1)
+    # merged_df = merged_df[['instrument', 'datetime', 'open', 'high', 'low', 'close', 'volume', '名称', 'weight','板块名称','总股本']]
+    # 可以将instrument和datetime设置回索引（如果需要）
+    merged_df = merged_df.set_index(['instrument', 'datetime'])
 
-    # 只保留weight列有数据的行
-    merged_df = merged_df.dropna(subset=['weight'])
+####################step4 限定原始量价进行计算 ############################
+    start_date = '2020-01-01'
+    split_date = '2024-09-01'
+    test = knn_stock_prediction(merged_df, start_date, split_date)
 
-    #######################################
-    merged_df[merged_df['datetime'] == '2020-01-02']
-    merged_df = merged_df[['code', 'datetime', 'close', 'Predicted_Signal','weight','板块名称']]
-    merged_df = merged_df.rename(columns={
-        "板块名称": "INDUSTRY_CODE",
-        "Predicted_Signal":"rank"})
-    #######################################
+    # 确保 df 的索引转换为列，方便合并操作
+    merged_df_1 = merged_df.reset_index()
 
-    # 使用 merge 函数将 combined_df_new 中的相关列合并到 ranked_data 中
+    # 合并数据
+    merged_df_2 = pd.merge(merged_df_1, test, on=['instrument', 'datetime'], how='left')
 
+    # 如果需要，可以将索引恢复原状
+    merged_df_2 = merged_df_2.set_index(['instrument', 'datetime'])
 
-    ranked_data_1 = merged_df.join(combined_df_new.set_index('代码'), on='code', how='left')
+    merged_df_2['market_cap']=merged_df_2['$close']*merged_df_2['总股本']
+    merged_df_2 = merged_df_2.rename_axis(index={'instrument': 'code'})
+    merged_df_2 = merged_df_2.rename_axis(index={'datetime': 'date'})
+    merged_df_2 = merged_df_2.rename(columns={'板块名称': 'INDUSTRY_CODE'})
+    merged_df_2 = merged_df_2.drop(columns=['名称', '总股本'])
 
-    ranked_data_1 = ranked_data_1.set_index(['code', 'datetime'])
-    # ranked_data_2 = ranked_data_2.rename_axis(index={'datetime': 'date'})
+    # 假设 merged_df_2 已经定义
+    # 指定要处理的列
+    columns_to_process = ['market_cap']
+    merged_df_3 = merged_df_2.groupby(level='date').apply(lambda x: factors_null_process(x, columns_to_process))
 
-    # 取字段
-    ranked_data_2 = ranked_data_1[['close', 'rank', 'INDUSTRY_CODE', 'market_cap']]
-    #
-    ranked_data_2['NEXT_RET'] = ranked_data_2['close'].pct_change().shift(-1)
-    #检测数据
-    #ranked_data_2.loc[(ranked_data_2.index.get_level_values('datetime') == pd.Timestamp('2020-01-02'))]
+    # 市值等量分三组
+    k1 = [pd.Grouper(level='date'),
+        pd.Grouper(key='INDUSTRY_CODE')]
 
-    #只取规则里的数据
+    merged_df_3['GROUP'] = merged_df_3.groupby(
+        k1)['market_cap'].apply(lambda x: get_group(x, 3))
 
-    ranked_data_3 = ranked_data_2.loc[(ranked_data_2.index.get_level_values('datetime') >= pd.Timestamp('2024-09-01'))]
+############################################################################
+import pandas as pd
 
+# 假设 merged_df_3 已经定义并包含 'date', 'INDUSTRY_CODE', 'market_cap' 列
 
+def get_group(ser: pd.Series, N: int = 3, ascend: bool = True) -> pd.Series:
+    '''默认分三组 升序'''
+    ranks = ser.rank(method='first', ascending=ascend)  # 使用 'first' 以确保排名唯一
+    labels = ['G' + str(i) for i in range(1, N + 1)]
+    return pd.cut(ranks, bins=N, labels=labels, include_lowest=True)
 
+# 使用 transform 应用分组和分类
+merged_df_3['GROUP'] = merged_df_3.groupby(['date', 'INDUSTRY_CODE'])['market_cap'].transform(
+    lambda x: get_group(x, 3)
+)
 
+# 现在 merged_df_3 包含了一个新的 'GROUP' 列，表示每个 (date, INDUSTRY_CODE) 组合下的市值分组
 
-
-
-
-
-
-
-
-
-
-
-#######################检测数据############################################
-#test_set = test[test['Predicted_Signal'].isna()]
-#grouped_counts = test_set.groupby('instrument').size().reset_index(name='count')
-
-
-#test.xs('SH600764', level='instrument')['Predicted_Signal'].isna()
-#[test.xs('SH600764', level='instrument')['Predicted_Signal'].isna()].reset_index()
-
-#####
+merged_df_3.xs('2020-01-02', level='date').head()
 
 
-'''
 
 
 
