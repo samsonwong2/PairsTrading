@@ -112,10 +112,33 @@ if __name__ == '__main__':
     start_date = '2020-01-01'
     split_date = '2024-09-01'
     test = knn_stock_prediction(raw_data, start_date, split_date)
-    test.to_csv("c:\\temp\\new_all_data_20250212.csv")
+    test.to_csv("c:\\temp\\new_all_data_20250213.csv")
 
+
+'''
+##################################################################    
+    raw_data_reset = raw_data.reset_index()
+    # 使用 merge 函数根据 code 和 instrument 进行连接
+    filtered_data = pd.merge(raw_data_reset, weights_df_2, left_on='instrument', right_on='code', how='inner')
+    # 选择需要的列
+    filtered_data = filtered_data[
+        ['instrument', 'datetime', 'open', 'high', 'low', 'close', 'volume', '名称', 'weight']]
+    filtered_data = filtered_data.set_index(['instrument', 'datetime'])
+'''        
+
+
+
+
+
+
+
+
+'''
     # 获取指数6月底跟12月底的权重数据，取数方式见“同花顺数据采集.py”
     #########################################################################
+        #获取股票板块及总股本
+    combined_df_new = pd.read_csv('c:\\temp\\combined_df_new_20250124.csv')
+    combined_df_new = combined_df_new.drop(combined_df_new.columns[[0]], axis=1)
     weights_df = pd.read_csv("c:\\temp\\weights_df_20160616.csv")
     weights_df = weights_df.drop(weights_df.columns[[0]], axis=1)
     weights_df_1 = pd.read_csv("c:\\temp\\weights_df_1_20160617.csv")
@@ -157,31 +180,56 @@ if __name__ == '__main__':
 
     #######################################
     merged_df[merged_df['datetime'] == '2020-01-02']
-    
+    merged_df = merged_df[['code', 'datetime', 'close', 'Predicted_Signal','weight','板块名称']]
+    merged_df = merged_df.rename(columns={
+        "板块名称": "INDUSTRY_CODE",
+        "Predicted_Signal":"rank"})
     #######################################
-    #获取股票板块及总股本
-    combined_df_new = pd.read_csv('c:\\temp\\combined_df_new_20250124.csv')
-    combined_df_new = combined_df_new.drop(combined_df_new.columns[[0]], axis=1)
-    test = test.rename(columns={
-        "instrument": "code"})
+
     # 使用 merge 函数将 combined_df_new 中的相关列合并到 ranked_data 中
-    ranked_data_1 = test.join(combined_df_new.set_index('代码'), on='code', how='left')
+
+
+    ranked_data_1 = merged_df.join(combined_df_new.set_index('代码'), on='code', how='left')
+
+    ranked_data_1 = ranked_data_1.set_index(['code', 'datetime'])
+    # ranked_data_2 = ranked_data_2.rename_axis(index={'datetime': 'date'})
+
+    # 取字段
+    ranked_data_2 = ranked_data_1[['close', 'rank', 'INDUSTRY_CODE', 'market_cap']]
+    #
+    ranked_data_2['NEXT_RET'] = ranked_data_2['close'].pct_change().shift(-1)
+    #检测数据
+    #ranked_data_2.loc[(ranked_data_2.index.get_level_values('datetime') == pd.Timestamp('2020-01-02'))]
+
+    #只取规则里的数据
+
+    ranked_data_3 = ranked_data_2.loc[(ranked_data_2.index.get_level_values('datetime') >= pd.Timestamp('2024-09-01'))]
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
 #######################检测数据############################################
-test_set = test[test['Predicted_Signal'].isna()]
-grouped_counts = test_set.groupby('instrument').size().reset_index(name='count')
+#test_set = test[test['Predicted_Signal'].isna()]
+#grouped_counts = test_set.groupby('instrument').size().reset_index(name='count')
 
 
-test.xs('SH600764', level='instrument')['Predicted_Signal'].isna()[test.xs('SH600764', level='instrument')['Predicted_Signal'].isna()].reset_index()
-datetime	Predicted_Signal
-0	2025-02-06	True
-1	2025-02-07	True
+#test.xs('SH600764', level='instrument')['Predicted_Signal'].isna()[test.xs('SH600764', level='instrument')['Predicted_Signal'].isna()].reset_index()
+
 #####
 
 
-
+'''
 
 
 
