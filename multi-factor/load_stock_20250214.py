@@ -269,6 +269,34 @@ merged_df_3['GROUP'] = merged_df_3.groupby(['date', 'INDUSTRY_CODE'])['market_ca
 # 现在 merged_df_3 包含了一个新的 'GROUP' 列，表示每个 (date, INDUSTRY_CODE) 组合下的市值分组
 
 merged_df_3.xs('2020-01-02', level='date').head()
+#merged_df_3=pd.csv(“c:\\temp\\merged_df_3_20250214.csv")
+#merged_df_3 = merged_df_3.set_index(['date','code'])
+
+merged_df_3['Predicted_Signal'] = merged_df_3['Predicted_Signal'].fillna(0)
+merged_df_3 = merged_df_3.rename(columns={'Predicted_Signal': 'SCORE'})
+# 获取每组得分最大的
+k2 = [pd.Grouper(level='date'),
+      pd.Grouper(key='INDUSTRY_CODE'),
+      pd.Grouper(key='GROUP')]
+
+industry_kfold_stock = merged_df_3.groupby(
+    k2)['SCORE'].apply(lambda x: x.idxmax()[1])
+
+# 格式调整
+industry_kfold_stock = industry_kfold_stock.reset_index()
+industry_kfold_stock = industry_kfold_stock.set_index(['date', 'SCORE'])
+industry_kfold_stock.index.names = ['date', 'code']
+
+# 加入权重
+industry_kfold_stock['weight'] = merged_df_3['weight']
+merged_df_3['NEXT_RET'] = merged_df_3['$close'].pct_change().shift(-1)
+industry_kfold_stock['NEXT_RET'] = merged_df_3['NEXT_RET']
+# 储存,用于回测
+#industry_kfold_stock.to_csv("c:\\temp\\industry_kfold_stock_20250217.csv")
+
+
+
+
 
 
 
