@@ -2,7 +2,7 @@ import qlib
 from qlib.constant import REG_CN
 from qlib.data import D
 import pandas as pd
-provider_uri = "C:/Users/huangtuo/.qlib/qlib_data/fund_data/"  # target_dir
+provider_uri = "C:/Users/huangtuo/.qlib/qlib_data/cn_data/"  # target_dir
 import sys
 import os
 local_path = os.getcwd()
