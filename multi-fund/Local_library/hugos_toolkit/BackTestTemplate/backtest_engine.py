@@ -548,3 +548,136 @@ def get_backtesting(
     result = cerebro.run(tradehistory=True)
 
     return res(result, cerebro)
+
+class AddSignalData_w(bt.feeds.PandasData):
+    """用于加载回测用数据
+
+    """
+    lines = ("w",)
+
+    params = (("w", -1),)
+
+def get_weight_bt(
+    data: pd.DataFrame,
+    name: str = None,
+    strategy: bt.Strategy = SignalStrategy,
+    begin_dt: datetime.date = None,
+    end_dt: datetime.date = None,
+    **kw
+) -> namedtuple:
+    """回测
+
+    添加了百分比滑点(0.0001)
+    当日信号次日开盘买入
+    Args:
+        data (pd.DataFrame): OHLC数据包含信号
+        name (str): 数据名称
+        strategy (bt.Strategy): 策略
+
+    Returns:
+        namedtuple: result,cerebro
+    """
+    res = namedtuple("Res", "result,cerebro")
+
+    # 如果是True则表示是多个标的 数据加载采用for加载多组数据
+    mulit_add_data: bool = kw.get("mulit_add_data", False)
+    # slippage_perc滑点设置
+    slippage_perc: float = kw.get("slippage_perc", 0.0000)
+    # 费用设置
+    commission: float = kw.get("commission", 0.0000)
+    stamp_duty: float = kw.get("stamp_duty", 0.000)
+    # 是否显示log
+    show_log: bool = kw.get("show_log", True)
+
+    def LoadPandasFrame(data: pd.DataFrame) -> None:
+
+        idx: np.ndarray = data.index.sort_values().unique()
+        for code, df in data.groupby("code"):
+
+            df = df.reindex(idx)
+            df.sort_index(inplace=True)
+            df = df[["open", "high", "low", "close", "volume"]]
+            df.loc[:, "volume"] = df.loc[:, "volume"].fillna(0)
+            df.loc[:, ["open", "high", "low", "close"]] = df.loc[
+                :, ["open", "high", "low", "close"]
+            ].fillna(method="pad")
+
+            datafeed = AddSignalData_w(dataname=df, fromdate=begin_dt, todate=end_dt)
+            cerebro.adddata(datafeed, name=code)
+
+    # Create a dictionary to map the stock codes to their corresponding data
+
+
+    '''
+    '''
+    cerebro = bt.Cerebro()
+    cerebro.broker.setcash(1000000)
+    if (begin_dt is None) or (end_dt is None):
+        begin_dt = data.index.min()
+        end_dt = data.index.max()
+    else:
+        begin_dt = pd.to_datetime(begin_dt)
+        end_dt = pd.to_datetime(end_dt)
+    #直接添加数据
+    LoadPandasFrame(data)
+    #datafeed = AddSignalData(dataname=data, fromdate=begin_dt, todate=end_dt)
+    #cerebro.adddata(datafeed, name=code)
+    #datafeed = datafeed = AddSignalData(dataname=data, fromdate=begin_dt, todate=end_dt,)
+    #cerebro.adddata(datafeed, name='rank')
+    #if mulit_add_data:
+        #LoadPandasFrame(data)
+    #else:
+        #datafeed = AddSignalData(dataname=data, fromdate=begin_dt, todate=end_dt)
+        #cerebro.adddata(datafeed, name=name)
+
+    if slippage_perc is not None:
+        # 设置百分比滑点
+        cerebro.broker.set_slippage_perc(perc=slippage_perc)
+
+    if (commission is not None) and (commission is not None):
+        # 设置交易费用
+        comminfo = StockCommission(commission=commission, stamp_duty=stamp_duty)
+
+        cerebro.broker.addcommissioninfo(comminfo)
+
+    # 添加策略
+    cerebro.addstrategy(strategy, show_log=show_log)
+    # 添加分析指标
+    # 返回年初至年末的年度收益率
+    cerebro.addanalyzer(bt.analyzers.Returns, _name="_Returns", tann=252)
+    # 交易分析添加
+    cerebro.addanalyzer(bt.analyzers.TradeAnalyzer, _name="_TradeAnalyzer")
+    # 获取交易成本
+    cerebro.addanalyzer(bt.analyzers.Transactions, _name="_Transactions")
+    # 计算交易统计
+    cerebro.addanalyzer(bt.analyzers.PeriodStats, _name="_PeriodStats")
+    # 返回收益率时序
+    cerebro.addanalyzer(bt.analyzers.TimeReturn, _name="_TimeReturn")
+    # SQN
+    cerebro.addanalyzer(bt.analyzers.SQN, _name="_SQN")
+    # BuySell
+    #cerebro.addanalyzer(bt.analyzers.BuySell, _name="_BuySell")
+    # Share
+    cerebro.addanalyzer(
+        bt.analyzers.SharpeRatio,
+        _name="_Sharpe",
+        timeframe=bt.TimeFrame.Years,
+        riskfreerate=0.04,
+        annualize=True,
+        factor=250,
+    )
+
+    # 这个需要在run开启tradehistory=True
+    #cerebro.addanalyzer(TradeRecord, _name="_TradeRecord")
+    cerebro.addanalyzer(TradeListAnalyzer, _name="_TradeListAnalyzer")
+    # 添加自定义的 TradeLogger 分析器
+    cerebro.addanalyzer(TradeLogger, _name='_trade_logger')
+
+    #cerebro.addanalyzer(TradeAnalyzer_1, _name='_TradeAnalyzer_1')
+    cerebro.addanalyzer(OrderAnalyzer, _name='_OrderAnalyzer')
+    cerebro.addanalyzer(TradeStatisticsAnalyzer, _name='_TradeStatisticsAnalyzer')
+    cerebro.addanalyzer(DailyPositionAnalyzer, _name='_DailyPositionAnalyzer')
+
+    result = cerebro.run(tradehistory=True)
+
+    return res(result, cerebro)
