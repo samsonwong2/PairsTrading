@@ -1,9 +1,6 @@
-import json
-import warnings
+
 import time
-import akshare as ak
-import pandas as pd
-import numpy as np
+
 
 
 
@@ -62,14 +59,52 @@ def fetch_and_save_data(codefundsecname_file, dir_name, start_date, end_date):
                 time.sleep(random_delay)
 
 
+import subprocess
+import os
 
-codefundsecname_file = 'c:\\temp\\upload\\codefundsecname.csv'
-#dir_name = 'c:/temp/20240722'
-start_date = '20050101'
-end_date = '20250219'
+if __name__ == '__main__':
+    codefundsecname_file = r'c:\temp\upload\codefundsecname.csv'
+    dir_name = r'c:\temp\upload'  # 确保 dir_name 已定义
+    start_date = '20050101'
+    end_date = '20250220'
 
-fetch_and_save_data(codefundsecname_file, dir_name, start_date, end_date)
+    # 步骤1: 抓取并保存数据
+    fetch_and_save_data(codefundsecname_file, dir_name, start_date, end_date)
 
+    # 步骤2: 调用QLib数据转换脚本（全量替换数据）
+    qlib_scripts_path = r'C:\qlib-main\scripts'  # 替换为实际路径
+    csv_path = r'C:\Users\huangtuo\.qlib\qlib_data\fund_data\change_csv'  # CSV文件所在路径
+    qlib_dir = r'C:\Users\huangtuo\.qlib\qlib_data\fund_data'  # QLib数据目录
+
+    # 检查路径是否存在
+    if not os.path.exists(qlib_scripts_path):
+        print(f"路径不存在：{qlib_scripts_path}")
+    if not os.path.exists(csv_path):
+        print(f"路径不存在：{csv_path}")
+    if not os.path.exists(qlib_dir):
+        print(f"路径不存在：{qlib_dir}")
+
+    # 构造命令参数列表
+    command = [
+        'python',
+        f'{qlib_scripts_path}/dump_bin.py',
+        'dump_all',
+        '--csv_path', csv_path,
+        '--qlib_dir', qlib_dir,
+        '--symbol_field_name', 'code',
+        '--date_field_name', 'date',
+        '--include_fields', 'open,high,low,close,volume'
+    ]
+
+    try:
+        # 执行命令并检查结果
+        result = subprocess.run(command, check=True, text=True, capture_output=True, encoding='utf-8', errors='ignore')
+        print("命令执行成功！输出：")
+        print(result.stdout)
+    except subprocess.CalledProcessError as e:
+        print(f"命令执行失败，错误码：{e.returncode}")
+        print("错误信息：")
+        print(e.stderr)
 #全量替换数据
 #C:\qlib-main\scripts
 #python dump_bin.py dump_all --csv_path C:\Users\huangtuo\.qlib\qlib_data\fund_data\change_csv --qlib_dir C:\Users\huangtuo\.qlib\qlib_data\fund_data --symbol_field_name code  --date_field_name date  --include_fields open,high,low,close,volume
