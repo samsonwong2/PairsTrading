@@ -158,8 +158,8 @@ class TradeLogger(bt.Analyzer):
             'buy_size': trade.size,  # 买入数量
             'buy_value': trade.value,  # 买入价值
             'buy_day_close': trade.data.close[0],  # 当前收盘价格
-            'buy_rank_1': trade.data.rank[-1],  # 排名
-            'buy_rank': trade.data.rank[0],  # 当前排名
+            #'buy_rank_1': trade.data.rank[-1],  # 排名
+            #'buy_rank': trade.data.rank[0],  # 当前排名
             'buy_after_close': trade.data.close[trade.dtopen + 1] if trade.dtopen + 1 < len(trade.data.close) else None,  # 后一日收盘价格
             #'sell_date': bt.num2date(trade.dtclose),  # 卖出日期
             #'sell_price': trade.priceclosed,  # 卖出价格
@@ -596,10 +596,10 @@ def get_weight_bt(
 
             df = df.reindex(idx)
             df.sort_index(inplace=True)
-            df = df[["open", "high", "low", "close", "volume"]]
+            df = df[["open", "high", "low", "close", "volume", "w"]]
             df.loc[:, "volume"] = df.loc[:, "volume"].fillna(0)
             df.loc[:, ["open", "high", "low", "close"]] = df.loc[
-                :, ["open", "high", "low", "close"]
+                :, ["open", "high", "low", "close", "w"]
             ].fillna(method="pad")
 
             datafeed = AddSignalData_w(dataname=df, fromdate=begin_dt, todate=end_dt)
