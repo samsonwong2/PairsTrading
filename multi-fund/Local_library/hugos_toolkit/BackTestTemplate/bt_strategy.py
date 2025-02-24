@@ -449,73 +449,74 @@ class Multi_Weight_Strategy(bt.Strategy):
     )
 
     def __init__(self):
-        # 记录每个资产的权重字典 {data: weight}
         self.weights = {}
-        # 初始化持仓比例跟踪
         self.target_weights = {}
+        # 设置订单在收盘时执行（确保卖出资金立即释放）
+        self.broker.set_coc(True)  # cheat-on-close
 
     def next(self):
-        # 仅在交易日开始时执行
         if self.params.verbose:
             print(f"\n日期: {self.datetime.date()}")
 
-        # 遍历所有资产数据
+        # 确定所有资产的target_weights
+        self.target_weights.clear()  # 清空旧权重
         for data in self.datas:
-            # 检查数据长度是否足够，且当前K线有收盘价
             if len(data) < 1 or data.close[0] <= 0:
-                continue  # 跳过无效数据
-
-            # 检查是否存在有效权重
+                continue
             if len(data.w) > 0 and not pd.isnull(data.w[0]):
                 self.target_weights[data] = data.w[0]
 
-        # 计算总市值
         total_value = self.broker.get_value()
-        cash = self.broker.get_cash()
-        portfolio_value = total_value - cash
 
-        # 根据目标权重调整持仓
+        # -------------------------------
+        # 第一阶段：优先处理所有卖出订单
+        # -------------------------------
         for data, target_weight in self.target_weights.items():
-            # 再次检查数据有效性（防止遍历过程中数据失效）
             if len(data) < 1 or data.close[0] <= 0:
                 continue
 
-            # 当前持仓市值
             position = self.getposition(data)
             position_value = position.size * data.close[0]
             current_weight = position_value / total_value if total_value > 0 else 0
-
-            # 计算目标持仓市值
             target_value = total_value * target_weight
             delta_value = target_value - position_value
 
-            # 过滤微小交易（避免因浮点误差产生无效订单）
-            if abs(delta_value) < 1e-5:
-                continue
-
-            # 计算订单数量（确保分母不为零）
-            price = data.close[0]  # 使用收盘价或开盘价
-            order_size = delta_value / price
-
-            # 执行订单
-            if delta_value > 0:
-                self.buy(data=data, size=order_size, price=price)
-                if self.params.verbose:
-                    print(f"买入 {data._name}: 目标权重 {target_weight:.2%}, 数量 {order_size:.2f}")
-            elif delta_value < 0:
+            # 只处理卖出逻辑
+            if delta_value < -1e-5:  # 需要卖出
+                price = data.close[0]
+                order_size = delta_value / price
                 self.sell(data=data, size=abs(order_size), price=price)
                 if self.params.verbose:
-                    print(f"卖出 {data._name}: 目标权重 {target_weight:.2%}, 数量 {abs(order_size):.2f}")
+                    print(f"[卖出] {data._name}: 目标权重 {target_weight:.2%}, 数量 {abs(order_size):.2f}")
+
+        # -------------------------------
+        # 第二阶段：处理所有买入订单
+        # -------------------------------
+        for data, target_weight in self.target_weights.items():
+            if len(data) < 1 or data.close[0] <= 0:
+                continue
+
+            position = self.getposition(data)
+            position_value = position.size * data.close[0]
+            current_weight = position_value / total_value if total_value > 0 else 0
+            target_value = total_value * target_weight
+            delta_value = target_value - position_value
+
+            # 只处理买入逻辑
+            if delta_value > 1e-5:  # 需要买入
+                price = data.close[0]
+                order_size = delta_value / price
+                self.buy(data=data, size=order_size, price=price)
+                if self.params.verbose:
+                    print(f"[买入] {data._name}: 目标权重 {target_weight:.2%}, 数量 {order_size:.2f}")
 
     def notify_order(self, order):
-        # 订单状态跟踪（可选）
         if order.status in [order.Completed]:
             if order.isbuy():
                 direction = "买入"
             elif order.issell():
                 direction = "卖出"
-            print(
-                f"{direction} {order.data._name} 执行, 价格: {order.executed.price:.2f}, 数量: {order.executed.size:.2f}")
+            print(f"{direction} {order.data._name} 执行, 价格: {order.executed.price:.2f}, 数量: {order.executed.size:.2f}")
 
 
 

@@ -11,41 +11,19 @@ sys.path.append(local_path+'\\Local_library\\')
 from hugos_toolkit.BackTestTemplate import TopicStrategy,get_weight_bt,AddSignalData
 from hugos_toolkit.BackTestReport.tear import analysis_rets
 from hugos_toolkit.BackTestTemplate import Multi_Weight_Strategy
-from typing import List, Tuple
+import pandas as pd
 qlib.init(provider_uri=provider_uri, region=REG_CN)
-from datetime import datetime
-from typing import List, Tuple, Dict
+
 test_period = ("2024-09-01", "2025-02-07")
-
-
 ranked_data = pd.read_csv('c:\\temp\\new_industry_kfold_stock_20250219.csv',
                           parse_dates=['date'],
                           index_col=['date', 'code'])
 
 ranked_data.rename_axis(index={'date': 'datetime'}, inplace=True)
-# 筛选出 datetime 大于 '2023-05-23' 的所有数据行
+# 筛选出 datetime 大于 '2024-09-01' 的所有数据行
 raw_data = ranked_data.loc[(ranked_data.index.get_level_values('datetime') >= '2024-09-01'), :]
-
-import pandas as pd
-#raw_data=ranked_data
-# 获取所有唯一的日期和instrument
-all_dates = raw_data.index.get_level_values('datetime').unique()
-all_instruments = raw_data.index.get_level_values('code').unique()
-
-# 创建一个新的MultiIndex,包含所有日期和instrument的组合
-new_index = pd.MultiIndex.from_product([all_dates, all_instruments], names=['datetime', 'code'])
-
-# 使用reindex方法重新索引DataFrame,并用0填充缺失值
-new_df = raw_data.reindex(new_index, fill_value=0)
-
-new_df = new_df.reset_index(level='code')
-
-#剔除不在白名单里的所有股票
-#whitelist = pd.read_csv('C:\\temp\\important\\whitelist.csv')
-#new_df = new_df[new_df['code'].isin(whitelist['code'])]
-##########################
-# 筛选出 datetime 大于 '2023-05-23' 的所有数据行
-#new_df.loc[(new_df.index.get_level_values('datetime') == '2023-05-23'), :].head(2)
+raw_data = raw_data.reset_index(level='code')
+new_df=raw_data
 
 bt_result = get_weight_bt(
     new_df,
