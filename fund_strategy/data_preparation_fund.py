@@ -66,14 +66,14 @@ if __name__ == '__main__':
     codefundsecname_file = r'c:\temp\upload\codefundsecname.csv'
     dir_name = r'c:\temp\upload'  # 确保 dir_name 已定义
     start_date = '20050101'
-    end_date = '20250221'
+    end_date = '20250226'
 
+    csv_path = r'C:\Users\huangtuo\.qlib\qlib_data\fund_data\change_csv'  # CSV文件所在路径
     # 步骤1: 抓取并保存数据
-    fetch_and_save_data(codefundsecname_file, dir_name, start_date, end_date)
-
+    fetch_and_save_data(codefundsecname_file, csv_path, start_date, end_date)
     # 步骤2: 调用QLib数据转换脚本（全量替换数据）
     qlib_scripts_path = r'C:\qlib-main\scripts'  # 替换为实际路径
-    csv_path = r'C:\Users\huangtuo\.qlib\qlib_data\fund_data\change_csv'  # CSV文件所在路径
+
     qlib_dir = r'C:\Users\huangtuo\.qlib\qlib_data\fund_data'  # QLib数据目录
 
     # 检查路径是否存在
