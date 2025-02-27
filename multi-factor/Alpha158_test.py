@@ -1,6 +1,7 @@
 import qlib
 from qlib.constant import REG_CN
 import pandas as pd
+import numpy as np
 provider_uri = "C:/Users/huangtuo/.qlib/qlib_data/cn_data/"  # target_dir
 qlib.init(provider_uri=provider_uri, region=REG_CN)
 from qlib.data import D
@@ -51,8 +52,10 @@ weights_df_1 = weights_df_1.rename(columns={
 })
 weights_df_1['date'] = pd.to_datetime(weights_df_1['date'], format='%Y%m%d', errors='coerce')
 # 限定一下获取日期
-weights_df_2 = weights_df_1[weights_df_1['date'] >= '2020-01-01']
+weights_df_2 = weights_df_1[weights_df_1['date'] >= '2024-01-01']
 ######################
+
+
 ##########合并数据#########
 merged_df = pd.merge(fetch_factor.reset_index(), weights_df_2, left_on=['instrument', 'datetime'],
                      right_on=['code', 'date'], how='inner')
@@ -216,7 +219,7 @@ def lowdin_orthogonal(data):
 
 factors5 = factors4.groupby(level='date').apply(lowdin_orthogonal)
 factors5.info()
-
+factors5 = factors5.droplevel(0)
 
 # 构建计算横截面因子载荷相关系数均值函数
 def get_relations(datas: pd.DataFrame) -> pd.DataFrame:
@@ -283,7 +286,7 @@ merged = merged.drop(['instrument', 'datetime'], axis=1)
 merged = merged.set_index(['date', 'code'])
 merged['market_cap']=merged['$close']*merged['market_cap']
 merged = merged.drop(['$close'], axis=1)
-factors5=merged
+factors5_new=merged
 
 
 # 根据IR计算因子权重
@@ -321,26 +324,18 @@ def IR_weight(factor: pd.DataFrame) -> pd.DataFrame:
 
 # 获取权重
 import scipy.stats as st
-weights = IR_weight(factors5)
+weights = IR_weight(factors5_new)
 
 # 获取因子名称
-factor_names = [name for name in factors5.columns if name not in [
+factor_names = [name for name in factors5_new.columns if name not in [
     'INDUSTRY_CODE', 'market_cap', 'NEXT_RET']]
 
 # 计算因子分数
-factors5['SCORE'] = (factors5[factor_names].mul(weights)).sum(axis=1)
+factors5_new['SCORE'] = (factors5_new[factor_names].mul(weights)).sum(axis=1)
 
-ranked_data_2 = factors5
+ranked_data_2 = factors5_new
 # 按 'date' 分组，并使用 'market_cap' 的中位数进行回填
 ranked_data_2['market_cap'] = ranked_data_2.groupby('date')['market_cap'].transform(lambda x: x.fillna(x.median()))
-
-# 市值等量分三组
-k1 = [pd.Grouper(level='date'),
-      pd.Grouper(key='INDUSTRY_CODE')]
-
-ranked_data_2['GROUP'] = ranked_data_2.groupby(
-    k1)['market_cap'].apply(lambda x: get_group(x, 3))
-
 
 def get_group(ser: pd.Series, N: int = 3, ascend: bool = True) -> pd.Series:
     '''默认分三组 升序'''
@@ -352,6 +347,8 @@ def get_group(ser: pd.Series, N: int = 3, ascend: bool = True) -> pd.Series:
 ranked_data_2['GROUP'] = ranked_data_2.groupby(['date', 'INDUSTRY_CODE'])['market_cap'].transform(
     lambda x: get_group(x, 3)
 )
+
+
 
 #ranked_data_2.xs('2020-01-02', level='date').head()
 ranked_data_2['SCORE'] = ranked_data_2['SCORE'].fillna(0)
@@ -377,8 +374,10 @@ industry_kfold_stock['weight'] = merged_df_3['weight']
 industry_kfold_stock['NEXT_RET'] = ranked_data_2['NEXT_RET']
 
 industry_kfold_stock = industry_kfold_stock.dropna()
-industry_kfold_stock = industry_kfold_stock.drop(['index'], axis=1)
-
+#industry_kfold_stock = industry_kfold_stock.drop(['index'], axis=1)
+# 令权重加总为1
+industry_kfold_stock['w'] = industry_kfold_stock.groupby(
+    level='date')['weight'].transform(lambda x: x / x.sum())
 
 ###########################
 columns_to_add = ['$open', '$high', '$low', '$close', '$volume']
@@ -389,7 +388,80 @@ new_industry_kfold_stock = industry_kfold_stock.join(merged_df_subset, how='left
 columns_to_add = ['open', 'high', 'low', 'close', 'volume','w']
 new_industry_kfold_stock = new_industry_kfold_stock[columns_to_add]
 
-new_industry_kfold_stock = new_industry_kfold_stock.droplevel(2)
+
+#####################################################################################
+####################################################################################
+#########################################################################################
+ranked_data=new_industry_kfold_stock
+ranked_data.rename_axis(index={'date': 'datetime'}, inplace=True)
+# 筛选出 datetime 大于 '2024-09-01' 的所有数据行
+raw_data = ranked_data.loc[(ranked_data.index.get_level_values('datetime') >= '2024-09-01'), :]
+raw_data = raw_data.reset_index(level='code')
+new_df=raw_data
+
+import qlib
+from qlib.constant import REG_CN
+from qlib.data import D
+import pandas as pd
+provider_uri = "C:/Users/huangtuo/.qlib/qlib_data/cn_data/"  # target_dir
+import sys
+import os
+local_path = os.getcwd()
+local_path = "C:/Users/huangtuo/Documents\\GitHub\\PairsTrading\\multi-fund\\"
+sys.path.append(local_path+'\\Local_library\\')
+from hugos_toolkit.BackTestTemplate import TopicStrategy,get_weight_bt,AddSignalData
+from hugos_toolkit.BackTestReport.tear import analysis_rets
+from hugos_toolkit.BackTestTemplate import Multi_Weight_Strategy
+import pandas as pd
+qlib.init(provider_uri=provider_uri, region=REG_CN)
+
+test_period = ("2024-09-01", "2025-02-07")
+bt_result = get_weight_bt(
+    new_df,
+    name="code",
+    strategy=Multi_Weight_Strategy,
+    mulit_add_data=True,
+    feedsfunc=AddSignalData,
+    strategy_params={"selnum": 5, "pre": 0.05, 'ascending': False},
+    begin_dt=test_period[0],
+    end_dt=test_period[1],
+)
+
+benchmark_old = ["SH000300"]
+# data, benchmark = get_backtest_data(ranked_data, test_period[0], test_period[1], market, benchmark_old)
+benchmark: pd.DataFrame = D.features(
+    benchmark_old,
+    fields=["$close"],
+    start_time=test_period[0],
+    end_time=test_period[1],
+).reset_index(level=0, drop=True)
+benchmark_ret: pd.Series = benchmark['$close'].pct_change()
+
+
+trade_logger = bt_result.result[0].analyzers._trade_logger.get_analysis()
+TradeListAnalyzer = bt_result.result[0].analyzers._TradeListAnalyzer.get_analysis()
+TradeStatisticsAnalyzer = bt_result.result[0].analyzers._TradeStatisticsAnalyzer.get_analysis()
+DailyPositionAnalyzer = bt_result.result[0].analyzers._DailyPositionAnalyzer.get_analysis()
+
+OrderAnalyzer = bt_result.result[0].analyzers._OrderAnalyzer.get_analysis()
+
+trader_df = pd.DataFrame(trade_logger)
+orders_df = pd.DataFrame(OrderAnalyzer)
+
+algorithm_returns: pd.Series = pd.Series(
+    bt_result.result[0].analyzers._TimeReturn.get_analysis()
+)
+
+#benchmark_new = benchmark[split:]
+report = analysis_rets(algorithm_returns, bt_result.result, benchmark['$close'].pct_change(), use_widgets=True)
+
+from plotly.offline import iplot
+from plotly.offline import init_notebook_mode
+
+init_notebook_mode()
+for chart in report:
+    iplot(chart)
+
 
 
 
