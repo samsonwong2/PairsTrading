@@ -27,10 +27,12 @@ def fetch_and_save_data(codefundsecname_file, dir_name, start_date, end_date):
     for code_type, codes in data_codes.items():
         for original_str in codes:
             try:
-                if code_type == 'lof_code':
-                    fund_df = ak.fund_lof_hist_em(symbol=original_str[2:], period="daily", start_date=start_date, end_date=end_date, adjust="")
-                elif code_type == 'etf_code':
-                    fund_df = ak.fund_etf_hist_em(symbol=original_str[2:], period="daily", start_date=start_date, end_date=end_date, adjust="")
+                if code_type == 'lof_code' :
+                    fund_df = ak.fund_etf_hist_em(symbol=original_str[2:], period="daily", start_date=start_date,
+                                                  end_date=end_date, adjust="")
+                    #fund_df = ak.fund_lof_hist_em(symbol=original_str[2:], period="daily", start_date=start_date, end_date=end_date, adjust="")
+                #elif code_type == 'etf_code' or code_type == 'lof_code':
+                    #fund_df = ak.fund_etf_hist_em(symbol=original_str[2:], period="daily", start_date=start_date, end_date=end_date, adjust="")
                 elif code_type == 'index_code':
                     fund_df = ak.stock_zh_index_daily_em(symbol=original_str, start_date=start_date, end_date=end_date)
 
@@ -66,7 +68,7 @@ if __name__ == '__main__':
     codefundsecname_file = r'c:\temp\upload\codefundsecname.csv'
     dir_name = r'c:\temp\upload'  # 确保 dir_name 已定义
     start_date = '20050101'
-    end_date = '20250227'
+    end_date = '20250312'
 
     csv_path = r'C:\Users\huangtuo\.qlib\qlib_data\fund_data\change_csv'  # CSV文件所在路径
     # 步骤1: 抓取并保存数据

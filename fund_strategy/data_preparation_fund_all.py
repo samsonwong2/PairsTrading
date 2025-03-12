@@ -1,0 +1,134 @@
+
+import time
+
+
+
+
+
+#dir_name = 'C:/Users/huangtuo/.qlib/qlib_data/fund_data/csv'
+dir_name = 'C:/Users/huangtuo/.qlib/qlib_data/all_fund_data/change_csv'
+
+import pandas as pd
+import akshare as ak
+import random
+
+def fetch_and_save_data(dir_name, start_date, end_date):
+    codefundsecname = ak.fund_exchange_rank_em()
+
+    codefundsecname=codefundsecname.head(50)
+    max_date = codefundsecname['日期'].max()
+    file_name = r'c:\temp\upload\{fund_exchange_rank_em + max_date}.csv'
+    #codefundsecname.to_csv(file_name, header=True, index=False)
+    print("采集日期为：",max_date)
+
+    fund_code = codefundsecname['基金代码']
+
+
+    for codes in fund_code.items():
+        try:
+            fund_df=ak.fund_etf_hist_em(symbol=codes[1], period="daily", start_date=start_date, end_date=end_date, adjust="")
+            if fund_df.empty:
+               raise ValueError(f"No data retrieved for {codes[1]}")
+
+            fund_df = fund_df.rename(columns={
+                        '日期': 'date',
+                        '开盘': 'open',
+                        '收盘': 'close',
+                        '最高': 'high',
+                        '最低': 'low',
+                        '成交量': 'volume',
+                        '成交额': 'turnover',
+                        '涨跌幅': 'change_pct',
+                        '换手率': 'turnover_rate'
+            })
+            fund_df_ = fund_df[['date', 'open', 'close', 'high', 'low', 'volume','turnover','change_pct','turnover_rate']]
+            fund_df.loc[:, "date"] = pd.to_datetime(fund_df['date']).dt.strftime('%Y-%m-%d')
+            fund_df["date"] = fund_df["date"].astype('datetime64[ns]')
+            fund_df.loc[:, "code"]= codes[1]
+            file_name = f"{dir_name}/{codes[1]}.csv"
+            fund_df.to_csv(file_name, header=True, index=False)
+        except Exception as e:
+            print(f"Error for {codes[1]}: {e}")
+        finally:
+                # 随机暂停 5 到 15 秒
+            random_delay = random.randint(1, 10)
+            time.sleep(random_delay)
+
+
+import subprocess
+import os
+
+if __name__ == '__main__':
+    codefundsecname_file = r'c:\temp\upload\codefundsecname.csv'
+    dir_name = r'c:\temp\upload'  # 确保 dir_name 已定义
+    start_date = '20050101'
+    end_date = '20250312'
+
+    csv_path = r'C:\Users\huangtuo\.qlib\qlib_data\all_fund_data\change_csv'  # CSV文件所在路径
+    # 步骤1: 抓取并保存数据
+    fetch_and_save_data(csv_path, start_date, end_date)
+    # 步骤2: 调用QLib数据转换脚本（全量替换数据）
+    qlib_scripts_path = r'C:\qlib-main\scripts'  # 替换为实际路径
+
+    qlib_dir = r'C:\Users\huangtuo\.qlib\qlib_data\all_fund_data'  # QLib数据目录
+
+    # 检查路径是否存在
+    if not os.path.exists(qlib_scripts_path):
+        print(f"路径不存在：{qlib_scripts_path}")
+    if not os.path.exists(csv_path):
+        print(f"路径不存在：{csv_path}")
+    if not os.path.exists(qlib_dir):
+        print(f"路径不存在：{qlib_dir}")
+
+    # 构造命令参数列表
+    command = [
+        'python',
+        f'{qlib_scripts_path}/dump_bin.py',
+        'dump_all',
+        '--csv_path', csv_path,
+        '--qlib_dir', qlib_dir,
+        '--symbol_field_name', 'code',
+        '--date_field_name', 'date',
+        '--include_fields', 'open,high,low,close,volume,turnover,change_pct,turnover_rate'
+    ]
+
+    try:
+        # 执行命令并检查结果
+        result = subprocess.run(command, check=True, text=True, capture_output=True, encoding='utf-8', errors='ignore')
+        print("命令执行成功！输出：")
+        print(result.stdout)
+    except subprocess.CalledProcessError as e:
+        print(f"命令执行失败，错误码：{e.returncode}")
+        print("错误信息：")
+        print(e.stderr)
+#全量替换数据
+#C:\qlib-main\scripts
+#python dump_bin.py dump_all --csv_path C:\Users\huangtuo\.qlib\qlib_data\fund_data\change_csv --qlib_dir C:\Users\huangtuo\.qlib\qlib_data\fund_data --symbol_field_name code  --date_field_name date  --include_fields open,high,low,close,volume
+
+#增量更新数据
+
+#python dump_bin.py dump_update --csv_path C:\Users\huangtuo\.qlib\qlib_data\fund_data\csv --qlib_dir C:\Users\huangtuo\.qlib\qlib_data\fund_data --symbol_field_name code  --date_field_name date  --include_fields open,high,low,close,volume
+
+
+
+
+
+#fund_basic = pro.fund_basic(market='E')
+#stk_set=list(fund_basic.loc[:, 'ts_code'])
+#make_fund_dataset(stk_set, start, end)
+
+'''
+from qlib.data import D
+instruments = D.instruments(market='test')
+data = D.list_instruments(instruments=instruments)
+df = pd.DataFrame(columns=['ts_code', 'start', 'end'])
+for ts_code, periods in data.items():
+    for period in periods:
+        start = period[0].floor('D')
+        end = period[1].floor('D')
+        df = df.append({'ts_code': ts_code,
+                        'start': start,
+                        'end': end},
+                       ignore_index=True)
+'''
+
