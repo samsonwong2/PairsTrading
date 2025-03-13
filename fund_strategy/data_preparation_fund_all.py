@@ -15,10 +15,10 @@ import random
 def fetch_and_save_data(dir_name, start_date, end_date):
     codefundsecname = ak.fund_exchange_rank_em()
 
-    codefundsecname=codefundsecname.head(50)
+    #codefundsecname=codefundsecname.head()
     max_date = codefundsecname['日期'].max()
     file_name = r'c:\temp\upload\{fund_exchange_rank_em + max_date}.csv'
-    #codefundsecname.to_csv(file_name, header=True, index=False)
+    codefundsecname.to_csv(file_name, header=True, index=False)
     print("采集日期为：",max_date)
 
     fund_code = codefundsecname['基金代码']
