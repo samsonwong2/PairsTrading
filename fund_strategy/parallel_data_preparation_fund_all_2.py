@@ -107,7 +107,7 @@ def fetch_and_save_data_parallel(dir_name, start_date, end_date):
         logger.debug(f"获取到最新基金数据日期：{max_date}")
 
         # 保存基金列表
-        file_name = f'C:\temp\fund_list_{max_date.strftime}.csv'
+        file_name = r'C:\temp\fund_list.csv'
         codefundsecname.to_csv(file_name, index=False)
         logger.info(f"基金列表已保存至：{file_name}")
 
