@@ -1,4 +1,4 @@
-import logging
+﻿import logging
 import time
 import pandas as pd
 import akshare as ak
@@ -7,8 +7,6 @@ from logging.handlers import RotatingFileHandler
 import subprocess
 import os
 from concurrent.futures import ThreadPoolExecutor, as_completed
-import chardet  # 需先安装：pip install chardet
-
 # 初始化日志配置
 def setup_logger():
     """配置日志系统（含滚动日志功能）"""
@@ -201,7 +199,7 @@ if __name__ == '__main__':
         end_date = '20250325'
         csv_path = r'C:\Users\huangtuo\.qlib\qlib_data\all_fund_data\change_csv'
 
-        fetch_and_save_data_parallel(csv_path, start_date, end_date)
+        #fetch_and_save_data_parallel(csv_path, start_date, end_date)
         logger.info("程序正常退出")
 
         # 步骤2: 调用QLib数据转换脚本（全量替换数据）
@@ -214,7 +212,7 @@ if __name__ == '__main__':
             if not os.path.exists(path):
                 logger.warning(f"路径不存在：{path}")
 
-        # 构造命令参数列表（使用列表形式避免注入风险[1,2](@ref)）
+        # 构造命令参数列表
         command = [
             'python',
             f'{qlib_scripts_path}/dump_bin.py',
@@ -223,30 +221,18 @@ if __name__ == '__main__':
             '--qlib_dir', qlib_dir,
             '--symbol_field_name', 'code',
             '--date_field_name', 'date',
-            '--include_fields', 'open,high,low,close,volume,turnover,change_pct,turnover_rate',
+            '--include_fields', 'open,high,low,close,volume'
         ]
 
         try:
-            # 执行命令并捕获原始字节（避免编码问题[3,6](@ref)）
-            result = subprocess.run(command, check=True, capture_output=True)
+            # 执行命令并检查结果（参考[5,6](@ref)）
+            result = subprocess.run(command, check=True, text=True, capture_output=True, encoding='utf-8')
             logger.info("命令执行成功！输出：")
-
+            logger.info(result.stdout)
         except subprocess.CalledProcessError as e:
-            # 同样处理错误输出（参考[5,6](@ref)）
-            detected_encoding = chardet.detect(e.stderr)['encoding']
-            decoded_stderr = e.stderr.decode(detected_encoding)
             logger.error(f"命令执行失败，错误码：{e.returncode}")
             logger.error("错误信息：")
-            logger.error(decoded_stderr)
-
-        except KeyboardInterrupt:
-            logger.warning("程序被用户中断（Ctrl+C）")
-            # 清理操作（参考[5,6](@ref)）
-            logger.info("清理完成，程序退出")
-
-        finally:
-            # 确保所有清理操作在此执行（解决SyntaxError[5,6](@ref)）
-            logger.info("执行最终清理")
+            logger.error(e.stderr)
 
     except Exception as e:
         logger.exception("未捕获的全局异常")  # 自动记录堆栈跟踪[5,6](@ref)
