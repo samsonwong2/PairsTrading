@@ -1,0 +1,128 @@
+
+
+<!DOCTYPE html>
+<html class="writer-html5" lang="zh-CN" data-content_root="./">
+<head>
+  <meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>send_mail_tool module &mdash; 基金数据模式分析与自动报告生成系统 0.1 文档</title>
+      <link rel="stylesheet" type="text/css" href="_static/pygments.css?v=80d5e7a1" />
+      <link rel="stylesheet" type="text/css" href="_static/css/theme.css?v=e59714d7" />
+
+  
+      <script src="_static/jquery.js?v=5d32c60e"></script>
+      <script src="_static/_sphinx_javascript_frameworks_compat.js?v=2cd50e6c"></script>
+      <script src="_static/documentation_options.js?v=7c91f8fd"></script>
+      <script src="_static/doctools.js?v=9a2dae69"></script>
+      <script src="_static/sphinx_highlight.js?v=dc90522c"></script>
+      <script src="_static/translations.js?v=beaddf03"></script>
+    <script src="_static/js/theme.js"></script>
+    <link rel="index" title="索引" href="genindex.html" />
+    <link rel="search" title="搜索" href="search.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+
+          
+          
+          <a href="index.html" class="icon icon-home">
+            基金数据模式分析与自动报告生成系统
+          </a>
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="search.html" method="get">
+    <input type="text" name="q" placeholder="搜索文档" aria-label="搜索文档" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="导航菜单">
+              <!-- Local TOC -->
+              <div class="local-toc"><ul>
+<li><a class="reference internal" href="#">send_mail_tool module</a><ul>
+<li><a class="reference internal" href="#send_mail_tool.send_mail_tool"><code class="docutils literal notranslate"><span class="pre">send_mail_tool</span></code></a><ul>
+<li><a class="reference internal" href="#send_mail_tool.send_mail_tool.action_send"><code class="docutils literal notranslate"><span class="pre">send_mail_tool.action_send()</span></code></a></li>
+</ul>
+</li>
+</ul>
+</li>
+</ul>
+</div>
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="移动版导航菜单" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="index.html">基金数据模式分析与自动报告生成系统</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="页面导航">
+  <ul class="wy-breadcrumbs">
+      <li><a href="index.html" class="icon icon-home" aria-label="Home"></a></li>
+      <li class="breadcrumb-item active">send_mail_tool module</li>
+      <li class="wy-breadcrumbs-aside">
+            <a href="_sources/send_mail_tool.rst.txt" rel="nofollow"> 查看页面源码</a>
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <section id="module-send_mail_tool">
+<span id="send-mail-tool-module"></span><h1>send_mail_tool module<a class="headerlink" href="#module-send_mail_tool" title="Link to this heading"></a></h1>
+<p>功能:邮件发送
+创建人:
+邮箱:
+创建日期:2024年4月9日
+版本:1.0</p>
+<dl class="py class">
+<dt class="sig sig-object py" id="send_mail_tool.send_mail_tool">
+<em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">send_mail_tool.</span></span><span class="sig-name descname"><span class="pre">send_mail_tool</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">_user</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'375317196&#64;qq.com'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">_pwd</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'kkoctnqsxjxabhdb'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">_recer</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">['tuo.huang&#64;zdzq.com.cn',</span> <span class="pre">'huangtuo02&#64;163.com']</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">fund_code</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">fund_name</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">local_url</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">name_list</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#send_mail_tool.send_mail_tool" title="Link to this definition"></a></dt>
+<dd><p>基类：<code class="xref py py-class docutils literal notranslate"><span class="pre">object</span></code></p>
+<dl class="py method">
+<dt class="sig sig-object py" id="send_mail_tool.send_mail_tool.action_send">
+<span class="sig-name descname"><span class="pre">action_send</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="headerlink" href="#send_mail_tool.send_mail_tool.action_send" title="Link to this definition"></a></dt>
+<dd><p>发送邮件</p>
+</dd></dl>
+
+</dd></dl>
+
+</section>
+
+
+           </div>
+          </div>
+          <footer>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; 版权所有 2025, huangtuo。</p>
+  </div>
+
+  利用 <a href="https://www.sphinx-doc.org/">Sphinx</a> 构建，使用的 
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">主题</a>
+    由 <a href="https://readthedocs.org">Read the Docs</a> 开发.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>

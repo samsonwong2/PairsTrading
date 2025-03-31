@@ -1,16 +1,8 @@
 #!/usr/bin/env python
 #-*-coding:utf-8-*-
-'''
-功能:邮件发送
-创建人:
-邮箱:
-创建日期:2024年4月9日
-版本:1.0
-'''
 import smtplib
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
-
 import json
 import warnings
 import datetime
@@ -22,11 +14,8 @@ warnings.filterwarnings('ignore')
 setting = json.load(open('C://config//config.json'))
 
 
-_user = "375317196@qq.com"
+_user = setting['_user']
 _pwd = setting['qq']
-# _to = "ft_clover@163.com"
-_recer=["tuo.huang@zdzq.com.cn","huangtuo02@163.com",]
-
 class send_mail_tool:
     def __init__(self, _user=_user, _pwd=_pwd, _recer=_recer ,fund_code=None ,fund_name=None, local_url=None,name_list=None):
         self._user = _user
@@ -58,12 +47,7 @@ class send_mail_tool:
         att1['Content-Type']='application/octet-stream'
         att1['Content-Disposition']='attachment;filename="message.gif"' #filename 填什么，邮件里边展示什么
         msg.attach(att1)
-
-        #list_1 = np.load('C://temp//upload//index_list.npy')
-        #list_1 = list_1.tolist()
         list_1 = self.name_list
-        #with open('C://temp//upload//codefundsecname.json') as file:
-            #code2secname = json.loads(file.read())
         dir_name = 'c:\\temp\\upload\\codefundsecname.csv'
         codefundsecname = pd.read_csv(dir_name)
 
