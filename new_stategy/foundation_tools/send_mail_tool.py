@@ -16,6 +16,7 @@ setting = json.load(open('C://config//config.json'))
 
 _user = setting['_user']
 _pwd = setting['qq']
+_recer = ["tianfangfang1105@126.com","huangtuo02@163.com", ]
 class send_mail_tool:
     def __init__(self, _user=_user, _pwd=_pwd, _recer=_recer ,fund_code=None ,fund_name=None, local_url=None,name_list=None):
         self._user = _user

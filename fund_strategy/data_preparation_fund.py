@@ -68,7 +68,7 @@ if __name__ == '__main__':
     codefundsecname_file = r'c:\temp\upload\codefundsecname.csv'
     dir_name = r'c:\temp\upload'  # 确保 dir_name 已定义
     start_date = '20050101'
-    end_date = '20250331'
+    end_date = '20250424'
 
     csv_path = r'C:\Users\huangtuo\.qlib\qlib_data\fund_data\change_csv'  # CSV文件所在路径
     # 步骤1: 抓取并保存数据
