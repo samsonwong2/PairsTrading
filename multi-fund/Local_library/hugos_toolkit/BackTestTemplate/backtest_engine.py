@@ -412,9 +412,9 @@ class AddSignalData(bt.feeds.PandasData):
 
     添加信号数据
     """
-    lines = ("rank",)
+    lines = ("w",)
 
-    params = (("rank", -1),)
+    params = (("w", -1),)
 
 # Create a custom PandasData subclass
 class AddData(bt.feeds.PandasData):
@@ -422,8 +422,8 @@ class AddData(bt.feeds.PandasData):
     Used to load backtesting data.
     Adds the "rank" signal data.
     """
-    lines = ("rank",)
-    params = (("rank", -1),)
+    lines = ("w",)
+    params = (("w", -1),)
 def get_backtesting(
     data: pd.DataFrame,
     name: str = None,
@@ -463,10 +463,10 @@ def get_backtesting(
 
             df = df.reindex(idx)
             df.sort_index(inplace=True)
-            df = df[["open", "high", "low", "close", "volume","rank"]]
+            df = df[["open", "high", "low", "close", "volume"]]
             df.loc[:, "volume"] = df.loc[:, "volume"].fillna(0)
             df.loc[:, ["open", "high", "low", "close"]] = df.loc[
-                :, ["open", "high", "low", "close","rank"]
+                :, ["open", "high", "low", "close"]
             ].fillna(method="pad")
 
             datafeed = AddSignalData(dataname=df, fromdate=begin_dt, todate=end_dt)
