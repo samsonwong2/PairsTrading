@@ -94,7 +94,7 @@ def strategy_performance(
 
     df["最大回撤"] = returns.apply(lambda x: ep.max_drawdown(x))
 
-    df["索提诺比率"] = returns.apply(lambda x: ep.sortino_ratio(x, period=periods))
+    #df["索提诺比率"] = returns.apply(lambda x: ep.sortino_ratio(x, period=periods))
 
     df["Calmar"] = returns.apply(lambda x: ep.calmar_ratio(x, period=periods))
 
