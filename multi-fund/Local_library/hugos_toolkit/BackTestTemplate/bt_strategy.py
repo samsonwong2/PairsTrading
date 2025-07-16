@@ -452,63 +452,125 @@ class Multi_Weight_Strategy(bt.Strategy):
         self.weights = {}
         self.target_weights = {}
         # 设置订单在收盘时执行（确保卖出资金立即释放）
-        self.broker.set_coc(True)  # cheat-on-close
+        self.broker.set_coc(False)  # 关闭收盘执行
+        self.broker.set_coo(True)  # 启用开盘执行 [1,9](@ref)
 
     def next(self):
         if self.params.verbose:
-            print(f"\n日期: {self.datetime.date()}")
+            print(f"\n策略权重生成日期: {self.datetime.date()}")
+
 
         # 确定所有资产的target_weights
         self.target_weights.clear()  # 清空旧权重
         for data in self.datas:
-            if len(data) < 1 or data.close[0] <= 0:
+            if len(data) < 1 or data.open[1] <= 0:
                 continue
             if len(data.w) > 0 and not pd.isnull(data.w[0]):
                 self.target_weights[data] = data.w[0]
 
         total_value = self.broker.get_value()
+        cash_value = self.broker.get_cash()
+        print(
+            f"日期: {self.datetime.date(0)} | "
+            f"账户资金: ¥{cash_value:,.2f} | "
+            f"总市值: ¥{total_value:,.2f}"
+        )
+        # 关键修改：判断是否为最后一个交易日（避免索引越界）
+        # 使用主数据（data0）进行判断
+        if len(self.data0) == self.data0.buflen():
+            print(f"⚠️ 警告：{self.datetime.date(0)} 是最后一个交易日，跳过交易逻辑避免索引错误")
+            return
 
-        # -------------------------------
-        # 第一阶段：优先处理所有卖出订单
-        # -------------------------------
+
+
+        # ================= 第一阶段：卖出订单处理（关键修改开始）=================
         for data, target_weight in self.target_weights.items():
-            if len(data) < 1 or data.close[0] <= 0:
+            if len(data) < 1 or data.open[1] <= 0:
                 continue
 
             position = self.getposition(data)
-            position_value = position.size * data.close[0]
+            position_value = position.size * data.open[1]
             current_weight = position_value / total_value if total_value > 0 else 0
             target_value = total_value * target_weight
             delta_value = target_value - position_value
 
-            # 只处理卖出逻辑
             if delta_value < -1e-5:  # 需要卖出
-                price = data.close[0]
-                order_size = delta_value / price
-                self.sell(data=data, size=abs(order_size), price=price)
-                if self.params.verbose:
-                    print(f"[卖出] {data._name}: 目标权重 {target_weight:.2%}, 数量 {abs(order_size):.2f}")
+                price = data.open[1]
+                # 原始计算值（可能含小数）
+                raw_size = abs(delta_value) / price
+
+                # 处理规则：
+                # 1. 超过100股：取100股整数倍（向下取整）
+                # 2. 不足100股：全部卖出（A股规则要求零股必须一次性卖出）[6](@ref)
+                if raw_size >= 100:
+                    order_size = int(raw_size // 100) * 100  # 100股整数倍
+                else:
+                    order_size = position.size  # 零头全部卖出
+
+                # 确保不超卖
+                order_size = min(order_size, position.size)
+
+                if order_size > 0:
+                    self.sell(data=data, size=order_size, exectype=bt.Order.Market)
+                    if self.params.verbose:
+                        print(f"[卖出] {data._name}: 成交日期 {self.datetime.date(0)},价格 {price},目标权重 {target_weight:.2%}, "
+                              f"理论数量 {raw_size:.2f}, 实际数量 {order_size} "
+                              f"({'零股全卖' if order_size < 100 else '100整数倍'})")
+        # ================= 卖出订单处理（关键修改结束）=================
+            # 2. 强制Broker处理订单（使卖出成交）
+        #self.broker.run()  # 立即执行挂单
 
         # -------------------------------
-        # 第二阶段：处理所有买入订单
+        # 第二阶段：处理所有买入订单（按目标权重降序执行）
         # -------------------------------
-        for data, target_weight in self.target_weights.items():
-            if len(data) < 1 or data.close[0] <= 0:
+
+        # 按目标权重降序排序，优先处理高权重标的
+        sorted_targets = sorted(
+            self.target_weights.items(),
+            key=lambda x: x[1],  # 按权重值排序
+            reverse=True  # 降序：从大到小
+        )
+
+        for data, target_weight in sorted_targets:  # 遍历排序后的列表
+            if len(data) < 1 or data.open[1] <= 0:
                 continue
 
             position = self.getposition(data)
-            position_value = position.size * data.close[0]
+            position_value = position.size * data.open[1]
             current_weight = position_value / total_value if total_value > 0 else 0
             target_value = total_value * target_weight
             delta_value = target_value - position_value
 
-            # 只处理买入逻辑
-            if delta_value > 1e-5:  # 需要买入
-                price = data.close[0]
-                order_size = delta_value / price
-                self.buy(data=data, size=order_size, price=price)
-                if self.params.verbose:
-                    print(f"[买入] {data._name}: 目标权重 {target_weight:.2%}, 数量 {order_size:.2f}")
+            # 仅处理买入逻辑（delta_value > 0）
+            if delta_value > 1e-5:
+                price = data.open[1]
+                raw_size = delta_value / price
+                order_size = int(raw_size // 100) * 100  # 100股整数倍
+
+                if order_size > 0:
+                    required_cash = order_size * price
+                    cash_available = self.broker.get_cash()
+
+                    if cash_available >= required_cash:
+                        self.buy(data=data, size=order_size, exectype=bt.Order.Market)
+                        # 日志记录
+                        if self.params.verbose:
+                            print(
+                                f"[买入] {data._name}: 提交日期 {self.datetime.date(0)} "
+                                f"价格 {price:.2f} 目标权重 {target_weight:.2%} "
+                                f"实际数量 {order_size}股"
+                            )
+                    else:
+                        # 增强版资金不足提示（含标的优先级信息）
+                        if self.params.verbose:
+                            print(
+                                f"资金不足: [{data._name}]需{required_cash:.2f}元 "
+                                f"（权重优先级: {target_weight:.2%}） "
+                                f"可用资金: {cash_available:.2f}元"
+                            )
+                else:
+                    if self.params.verbose:
+                        print(f"跳过微小交易: {data._name} 理论数量 {raw_size:.2f} < 100股")
 
     def notify_order(self, order):
         if order.status in [order.Completed]:
@@ -517,6 +579,227 @@ class Multi_Weight_Strategy(bt.Strategy):
             elif order.issell():
                 direction = "卖出"
             print(f"{direction} {order.data._name} 执行, 价格: {order.executed.price:.2f}, 数量: {order.executed.size:.2f}")
+
+######################################
+##################################
+##################
+class Multi_Weight_Strategy_new(bt.Strategy):
+    params = (
+        ("verbose", True),
+        ("show_log", True),
+        ("commission", 0.0003),  # 添加佣金参数
+    )
+
+    def __init__(self):
+        self.target_weights = {}
+        self.sell_orders = {}  # 跟踪卖出订单
+        self.buy_orders = {}  # 跟踪买入订单
+        self.commission_rate = self.p.commission  # 保存佣金率
+
+        # 设置订单在开盘时执行
+        self.broker.set_coo(True)  # 启用开盘执行
+
+    def next(self):
+        # 清除已执行的订单
+        self.sell_orders = {d: o for d, o in self.sell_orders.items() if o.status < o.Completed}
+        self.buy_orders = {d: o for d, o in self.buy_orders.items() if o.status < o.Completed}
+
+        # 计算目标权重
+        self.target_weights.clear()
+        valid_datas = []  # 存储有有效数据的数据源
+        price_data = {}  # 存储每个数据源的价格信息
+
+        for data in self.datas:
+            # 检查当前数据源是否有足够的数据
+            if len(data) < 2:
+                if self.p.verbose:
+                    print(f"跳过数据不足的股票: {data._name} (长度: {len(data)})")
+                continue
+
+            # 检查下一个交易日是否有数据
+            has_next_data = len(data) < data.buflen()
+
+            # 获取价格数据并检查有效性
+            next_open = data.open[1] if has_next_data else data.close[0]  # 最后交易日使用收盘价
+            if pd.isna(next_open) or next_open <= 0:
+                if self.p.verbose and has_next_data:
+                    print(f"跳过无效价格的股票: {data._name} (价格: {next_open})")
+                continue
+
+            if hasattr(data, 'w') and len(data.w) > 0 and not pd.isnull(data.w[0]):
+                self.target_weights[data] = data.w[0]
+                valid_datas.append(data)
+                price_data[data] = {
+                    'next_open': next_open,
+                    'has_next_data': has_next_data
+                }
+
+        if not valid_datas:
+            if self.p.verbose:
+                print(f"跳过无有效数据的交易日: {self.datetime.date()}")
+            return  # 没有有效数据，跳过
+
+        # 计算总资产和可用资金
+        total_value = self.broker.get_value()
+        cash_available = self.broker.get_cash()
+
+        # 安全检查：确保总资产有效
+        if pd.isna(total_value) or total_value <= 0:
+            total_value = cash_available  # 回退到可用资金
+            if self.p.verbose:
+                print(f"警告: 总资产计算为NaN或零，使用可用资金替代: {total_value}")
+
+        if self.p.verbose:
+            print(f"\n日期: {self.datetime.date()}")
+            print(f"总价值: {total_value:.2f}, 可用资金: {cash_available:.2f}")
+
+        # 阶段1: 处理卖出订单
+        for data in valid_datas:
+            target_weight = self.target_weights[data]
+            if data in self.sell_orders or data in self.buy_orders:
+                continue  # 已有待处理订单
+
+            position = self.getposition(data)
+            if not position.size:
+                continue  # 没有持仓
+
+            price_info = price_data[data]
+            next_open = price_info['next_open']
+            has_next_data = price_info['has_next_data']
+
+            position_value = position.size * next_open
+            current_weight = position_value / total_value if total_value > 0 else 0
+            target_value = total_value * target_weight
+
+            # 如果当前权重大于目标权重，需要卖出
+            if current_weight > target_weight + 0.001:
+                delta_value = position_value - target_value
+                price = next_open
+                raw_size = delta_value / price
+
+                # 处理A股100股整数倍的规则
+                if raw_size >= 100:
+                    order_size = int(raw_size // 100) * 100
+                else:
+                    order_size = position.size  # 零股全部卖出
+
+                order_size = min(order_size, position.size)  # 确保不超卖
+
+                if order_size > 0:
+                    # 只有当有下一个交易日数据时才提交订单
+                    if has_next_data:
+                        order = self.sell(data=data, size=order_size, exectype=bt.Order.Market)
+                        self.sell_orders[data] = order
+                        action = "提交卖出"
+                    else:
+                        action = "计划卖出(最后交易日不执行)"
+
+                    if self.p.verbose:
+                        print(f"{action} {data._name}: {order_size}股, 价格: {price:.2f}")
+
+        # 阶段2: 处理买入订单
+        # 按目标权重降序排序，优先处理高权重标的
+        sorted_targets = sorted(
+            [(data, target_weight) for data, target_weight in self.target_weights.items()],
+            key=lambda x: x[1],
+            reverse=True
+        )
+
+        for data, target_weight in sorted_targets:
+            if data not in valid_datas:
+                continue  # 跳过无效数据
+            if data in self.sell_orders or data in self.buy_orders:
+                continue  # 已有待处理订单
+
+            price_info = price_data[data]
+            next_open = price_info['next_open']
+            has_next_data = price_info['has_next_data']
+
+            position = self.getposition(data)
+            position_value = position.size * next_open if position.size else 0
+            current_weight = position_value / total_value if total_value > 0 else 0
+            target_value = total_value * target_weight
+
+            # 如果当前权重小于目标权重，需要买入
+            if current_weight < target_weight - 0.001:
+                delta_value = target_value - position_value
+                price = next_open
+
+                # 安全检查：确保价格有效
+                if pd.isna(price) or price <= 0:
+                    if self.p.verbose:
+                        print(f"跳过无效价格: {data._name} 价格 {price}")
+                    continue
+
+                raw_size = delta_value / price
+
+                # 安全检查：确保计算结果有效
+                if pd.isna(raw_size) or raw_size <= 0:
+                    if self.p.verbose:
+                        print(f"跳过无效计算: {data._name} raw_size={raw_size}")
+                    continue
+
+                # A股100股整数倍规则
+                order_size = int(raw_size // 100) * 100
+
+                if order_size > 0:
+                    required_cash = order_size * price * (1 + self.commission_rate)  # 包含佣金
+
+                    # 使用估计的可用资金（考虑已提交的卖出订单）
+                    estimated_cash = cash_available
+                    for sell_data, sell_order in self.sell_orders.items():
+                        if sell_order.status < sell_order.Completed:
+                            sell_position = self.getposition(sell_data)
+                            if sell_position.size > 0:
+                                # 从价格数据中获取对应股票的价格
+                                if sell_data in price_data:
+                                    sell_price = price_data[sell_data]['next_open']
+                                    estimated_cash += sell_position.size * sell_price * (1 - self.commission_rate)
+
+                    # 安全检查：确保估计资金有效
+                    if pd.isna(estimated_cash) or estimated_cash <= 0:
+                        estimated_cash = cash_available  # 回退到实际可用资金
+
+                    if estimated_cash >= required_cash:
+                        # 只有当有下一个交易日数据时才提交订单
+                        if has_next_data:
+                            order = self.buy(data=data, size=order_size, exectype=bt.Order.Market)
+                            self.buy_orders[data] = order
+                            action = "提交买入"
+                        else:
+                            action = "计划买入(最后交易日不执行)"
+
+                        if self.p.verbose:
+                            print(f"{action} {data._name}: {order_size}股, 价格: {price:.2f}, "
+                                  f"估计资金: {estimated_cash:.2f}, 需要: {required_cash:.2f}")
+                    else:
+                        if self.p.verbose:
+                            print(f"资金不足: {data._name} 需要 {required_cash:.2f}, 可用: {estimated_cash:.2f}")
+
+    def notify_order(self, order):
+        if order.status in [order.Completed]:
+            if order.isbuy():
+                print(f"买入 {order.data._name} 完成: 价格 {order.executed.price:.2f}, "
+                      f"数量 {order.executed.size}, 费用 {order.executed.value:.2f}")
+            elif order.issell():
+                print(f"卖出 {order.data._name} 完成: 价格 {order.executed.price:.2f}, "
+                      f"数量 {order.executed.size}, 收入 {order.executed.value:.2f}")
+
+            # 从跟踪字典中移除已完成订单
+            if order.data in self.sell_orders:
+                del self.sell_orders[order.data]
+            elif order.data in self.buy_orders:
+                del self.buy_orders[order.data]
+
+        elif order.status in [order.Canceled, order.Margin, order.Rejected]:
+            print(f"订单 {order.data._name} 取消/拒绝: {order.status}")
+
+            # 从跟踪字典中移除失败订单
+            if order.data in self.sell_orders:
+                del self.sell_orders[order.data]
+            elif order.data in self.buy_orders:
+                del self.buy_orders[order.data]
+
 
 
 

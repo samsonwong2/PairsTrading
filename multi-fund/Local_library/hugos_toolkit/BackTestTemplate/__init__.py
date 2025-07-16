@@ -1,3 +1,3 @@
 from .backtest_engine import get_backtesting,get_weight_bt
 from .backtest_engine import AddSignalData
-from .bt_strategy import TopicStrategy,LowRankStrategy,LowRankStrategy_new,Multi_Weight_Strategy
+from .bt_strategy import TopicStrategy,LowRankStrategy,LowRankStrategy_new,Multi_Weight_Strategy,Multi_Weight_Strategy_new

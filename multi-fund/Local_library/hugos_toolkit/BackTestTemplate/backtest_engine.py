@@ -16,6 +16,39 @@ import pandas as pd
 
 from .bt_strategy import SignalStrategy
 
+#################20250716日期##########################
+class DailyPositionAnalyzer_new(bt.Analyzer):
+    """分析器：记录每个交易日结束时的持仓情况"""
+
+    def __init__(self):
+        self.positions = {}  # 存储每个交易日的持仓数据
+        self.current_date = None
+
+    def next(self):
+        # 获取当前日期
+        current_date = self.data.datetime.date()
+
+        # 如果是新的交易日
+        if current_date != self.current_date:
+            self.current_date = current_date
+            self.positions[current_date] = {}
+
+            # 记录每个数据系列(股票)的持仓
+            for data in self.datas:
+                position = self.strategy.getposition(data)
+                ticker = data._name  # 使用数据名称作为股票代码
+
+                # 记录持仓信息
+                self.positions[current_date][ticker] = {
+                    'size': position.size,
+                    'price': position.price,
+                    'value': position.size * position.price
+                }
+
+    def get_analysis(self):
+        """返回分析结果，结构为：{日期: {股票代码: {size, price, value}}}"""
+        return self.positions
+##############################################
 class OrderAnalyzer(bt.analyzers.Analyzer):
     def __init__(self):
         self.orders = []
@@ -605,11 +638,6 @@ def get_weight_bt(
             datafeed = AddSignalData_w(dataname=df, fromdate=begin_dt, todate=end_dt)
             cerebro.adddata(datafeed, name=code)
 
-    # Create a dictionary to map the stock codes to their corresponding data
-
-
-    '''
-    '''
     cerebro = bt.Cerebro()
     cerebro.broker.setcash(1000000)
     if (begin_dt is None) or (end_dt is None):
@@ -620,16 +648,6 @@ def get_weight_bt(
         end_dt = pd.to_datetime(end_dt)
     #直接添加数据
     LoadPandasFrame(data)
-    #datafeed = AddSignalData(dataname=data, fromdate=begin_dt, todate=end_dt)
-    #cerebro.adddata(datafeed, name=code)
-    #datafeed = datafeed = AddSignalData(dataname=data, fromdate=begin_dt, todate=end_dt,)
-    #cerebro.adddata(datafeed, name='rank')
-    #if mulit_add_data:
-        #LoadPandasFrame(data)
-    #else:
-        #datafeed = AddSignalData(dataname=data, fromdate=begin_dt, todate=end_dt)
-        #cerebro.adddata(datafeed, name=name)
-
     if slippage_perc is not None:
         # 设置百分比滑点
         cerebro.broker.set_slippage_perc(perc=slippage_perc)
@@ -677,6 +695,8 @@ def get_weight_bt(
     cerebro.addanalyzer(OrderAnalyzer, _name='_OrderAnalyzer')
     cerebro.addanalyzer(TradeStatisticsAnalyzer, _name='_TradeStatisticsAnalyzer')
     cerebro.addanalyzer(DailyPositionAnalyzer, _name='_DailyPositionAnalyzer')
+    # 添加每日持仓分析器
+    #cerebro.addanalyzer(DailyPositionAnalyzer_new, _name="_DailyPositionAnalyzer_new")
 
     result = cerebro.run(tradehistory=True)
 
