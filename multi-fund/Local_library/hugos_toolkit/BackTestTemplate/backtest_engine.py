@@ -14,7 +14,7 @@ import backtrader.feeds as btfeeds
 import numpy as np
 import pandas as pd
 
-from .bt_strategy import SignalStrategy
+from .bt_strategy import Multi_Weight_Strategy
 
 #################20250716日期##########################
 class DailyPositionAnalyzer_new(bt.Analyzer):
@@ -460,7 +460,7 @@ class AddData(bt.feeds.PandasData):
 def get_backtesting(
     data: pd.DataFrame,
     name: str = None,
-    strategy: bt.Strategy = SignalStrategy,
+    strategy: bt.Strategy = None,
     begin_dt: datetime.date = None,
     end_dt: datetime.date = None,
     **kw
@@ -590,26 +590,83 @@ class AddSignalData_w(bt.feeds.PandasData):
 
     params = (("w", -1),)
 
+####################
+######################
+###############
+##################
+class EnhancedTimeReturnAnalyzer(bt.Analyzer):
+    """
+    增强型时间收益率分析器，提供更详细的资产价值跟踪和收益率计算
+    """
+
+    def __init__(self):
+        # 跟踪每日数据
+        self.daily_data = []
+
+    def start(self):
+        # 记录初始资产价值
+        self.initial_value = self.strategy.broker.getvalue()
+        self.prev_value = self.initial_value
+
+    def next(self):
+        # 获取当前日期和资产价值
+        current_date = self.strategy.datetime.date()
+        current_value = self.strategy.broker.getvalue()
+
+        # 计算当日收益率
+        daily_return = (current_value / self.prev_value) - 1 if self.prev_value != 0 else 0
+
+        # 记录当日数据
+        self.daily_data.append({
+            'date': current_date,
+            'value': current_value,
+            'return': daily_return,
+            'cash': self.strategy.broker.getcash(),
+            'positions': self._get_positions()
+        })
+
+        # 更新前一日资产价值
+        self.prev_value = current_value
+
+    def _get_positions(self):
+        """获取当前持仓信息"""
+        positions = {}
+        for data in self.strategy.datas:
+            size = self.strategy.getposition(data).size
+            if size != 0:
+                positions[data._name] = {
+                    'size': size,
+                    'price': self.strategy.getposition(data).price,
+                    'value': size * data.close[0]
+                }
+        return positions
+
+    def get_analysis(self):
+        # 转换为DataFrame进行处理
+        df = pd.DataFrame(self.daily_data)
+
+        # 设置日期为索引
+        if not df.empty:
+            df.set_index('date', inplace=True)
+        else:
+            # 如果没有数据，创建一个空的Series
+            return pd.Series(name='return')
+
+        # 返回Series格式的收益率
+        return df[['value', 'return', 'cash']]
+####################
+##########################
+##############################
+
 def get_weight_bt(
     data: pd.DataFrame,
     name: str = None,
-    strategy: bt.Strategy = SignalStrategy,
+    strategy: bt.Strategy = None,
     begin_dt: datetime.date = None,
     end_dt: datetime.date = None,
     **kw
 ) -> namedtuple:
-    """回测
 
-    添加了百分比滑点(0.0001)
-    当日信号次日开盘买入
-    Args:
-        data (pd.DataFrame): OHLC数据包含信号
-        name (str): 数据名称
-        strategy (bt.Strategy): 策略
-
-    Returns:
-        namedtuple: result,cerebro
-    """
     res = namedtuple("Res", "result,cerebro")
 
     # 如果是True则表示是多个标的 数据加载采用for加载多组数据
@@ -639,7 +696,7 @@ def get_weight_bt(
             cerebro.adddata(datafeed, name=code)
 
     cerebro = bt.Cerebro()
-    cerebro.broker.setcash(1000000)
+    cerebro.broker.setcash(10000000)
     if (begin_dt is None) or (end_dt is None):
         begin_dt = data.index.min()
         end_dt = data.index.max()
@@ -673,9 +730,6 @@ def get_weight_bt(
     cerebro.addanalyzer(bt.analyzers.TimeReturn, _name="_TimeReturn")
     # SQN
     cerebro.addanalyzer(bt.analyzers.SQN, _name="_SQN")
-    # BuySell
-    #cerebro.addanalyzer(bt.analyzers.BuySell, _name="_BuySell")
-    # Share
     cerebro.addanalyzer(
         bt.analyzers.SharpeRatio,
         _name="_Sharpe",
@@ -685,18 +739,13 @@ def get_weight_bt(
         factor=250,
     )
 
-    # 这个需要在run开启tradehistory=True
-    #cerebro.addanalyzer(TradeRecord, _name="_TradeRecord")
     cerebro.addanalyzer(TradeListAnalyzer, _name="_TradeListAnalyzer")
-    # 添加自定义的 TradeLogger 分析器
     cerebro.addanalyzer(TradeLogger, _name='_trade_logger')
-
-    #cerebro.addanalyzer(TradeAnalyzer_1, _name='_TradeAnalyzer_1')
     cerebro.addanalyzer(OrderAnalyzer, _name='_OrderAnalyzer')
     cerebro.addanalyzer(TradeStatisticsAnalyzer, _name='_TradeStatisticsAnalyzer')
     cerebro.addanalyzer(DailyPositionAnalyzer, _name='_DailyPositionAnalyzer')
-    # 添加每日持仓分析器
-    #cerebro.addanalyzer(DailyPositionAnalyzer_new, _name="_DailyPositionAnalyzer_new")
+    # 添加自定义分析器
+    cerebro.addanalyzer(EnhancedTimeReturnAnalyzer, _name="_CustomTimeReturn")
 
     result = cerebro.run(tradehistory=True)
 
